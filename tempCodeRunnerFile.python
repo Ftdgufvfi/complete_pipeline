@@ -1,0 +1,120 @@
+import cv2
+import os
+import numpy as np
+
+def thresholding(frame_diff, thresh_val=30):
+    _, thresh = cv2.threshold(frame_diff, thresh_val, 255, cv2.THRESH_BINARY)
+    return thresh
+
+def sdgd_filter(frame, sigma=1.0):
+    """
+    Approximates the SDGD filter:
+    - Gaussian smoothing
+    - Second derivatives using Laplacian
+    - First derivatives using Sobel
+    - Nonlinear fusion of gradient and Laplacian
+    """
+    # Gaussian smoothing
+    smoothed = cv2.GaussianBlur(frame, (5, 5), sigmaX=sigma)
+
+    # Second derivative via Laplacian
+    laplacian = cv2.Laplacian(smoothed, cv2.CV_64F, ksize=3)
+
+    # First derivatives via Sobel
+    sobel_x = cv2.Sobel(smoothed, cv2.CV_64F, 1, 0, ksize=3)
+    sobel_y = cv2.Sobel(smoothed, cv2.CV_64F, 0, 1, ksize=3)
+
+    # Gradient magnitude
+    grad_magnitude = np.sqrt(sobel_x ** 2 + sobel_y ** 2)
+
+    # Nonlinear fusion: add Laplacian and gradient magnitude
+    fused = np.abs(laplacian) + grad_magnitude
+
+    # Normalize and convert to 8-bit
+    fused_normalized = np.uint8(np.clip(fused, 0, 255))
+    return fused_normalized
+
+def morphological_operation(mask):
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+
+
+def process_video(video_path, fd_technique=True):
+    os.makedirs("output_frames", exist_ok=True)
+    cap = cv2.VideoCapture(video_path)
+    ret, ref_frame = cap.read()
+    if not ret:
+        print("Failed to read video.")
+        return
+
+    ref_gray = cv2.cvtColor(ref_frame, cv2.COLOR_BGR2GRAY)
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        F_diff = cv2.absdiff(gray, ref_gray)
+        F_x = thresholding(F_diff)
+        F_sdgd = sdgd_filter(F_diff)
+        F_g = cv2.bitwise_or(F_x, F_sdgd)
+        F_final = morphological_operation(F_g)
+
+        frame_no = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        cv2.imwrite(f'output_frames/frame_{frame_no}.png', F_final)
+
+        if not fd_technique:
+            ref_gray = gray.copy()
+
+    cap.release()
+
+'''
+def process_video(video_path, fd_technique=True):
+    cap = cv2.VideoCapture(video_path)
+    ret, ref_frame = cap.read()
+    if not ret:
+        print("Failed to read video.")
+        return
+
+    ref_gray = cv2.cvtColor(ref_frame, cv2.COLOR_BGR2GRAY)
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Step 1: Frame difference
+        F_diff = cv2.absdiff(gray, ref_gray)
+
+        # Step 2: Thresholding
+        F_x = thresholding(F_diff)
+
+        # Step 3: SDGD Filter
+        F_sdgd = sdgd_filter(F_diff)
+
+        # Step 4: Fusion
+        F_g = cv2.bitwise_or(F_x, F_sdgd)
+
+        # Step 5: Morphological operation
+        F_final = morphological_operation(F_g)
+
+        # Display result
+        cv2.imshow('Foreground Detection', F_final)
+        if cv2.waitKey(30) & 0xFF == 27:  # Press 'Esc' to exit
+            break
+
+        # Step 6: Update reference frame only if not FD technique
+        if not fd_technique:
+            ref_gray = gray.copy()
+
+    cap.release()
+    cv2.destroyAllWindows()
+'''
+# 🔧 USAGE EXAMPLE
+process_video(0) 
+video_path = r"C:\Users\chsra\Downloads\Unknown Camera1_20250312120150.avi"  # Replace with your video file
+ # Set to True to keep static reference

@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['objects']
+
+roboflow:
+  workspace: lc-gate-automation
+  project: vechicles-trains-track-detection
+  version: 1
+  license: Public Domain
+  url: https://universe.roboflow.com/lc-gate-automation/vechicles-trains-track-detection/dataset/1
